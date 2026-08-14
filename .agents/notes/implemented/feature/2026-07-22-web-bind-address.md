@@ -12,9 +12,9 @@ The HTTP carrier also hides the bind address inside `startWebServer()`, so alter
 
 ## Decision
 
-`dsh web` binds `127.0.0.1` by default. The CLI accepts `--host 0.0.0.0` as the explicit all-interface mode and rejects other values so its network modes remain a small, deliberate contract. All-interface mode keeps printing the loopback URL and, when available, the first external IPv4 URL.
+`dsh web` binds `127.0.0.1` by default. The CLI accepts a specific hostname or IP address and rejects `0.0.0.0`, so remote deployments name the interface they intend to expose instead of opening every interface. A specific bind becomes the canonical printed URL and an automatically trusted `/api` authority.
 
-`WebServerOptions.host` is required. The HTTP carrier passes that value to `node:http` without supplying a fallback, leaving each shell responsible for its bind policy. Programmatic carrier consumers may select another hostname or address directly.
+`WebServer.Config.host` is a required non-empty string. The HTTP carrier passes that value to `node:http` without supplying a fallback, leaving each shell responsible for its bind policy.
 
 ## Alternatives considered
 
@@ -26,4 +26,4 @@ The HTTP carrier also hides the bind address inside `startWebServer()`, so alter
 
 ## Consequences
 
-Local `dsh web` starts remain reachable at `http://127.0.0.1:3080`; a browser on another machine must opt in with `dsh web --host 0.0.0.0`. The CLI does not yet expose custom interface addresses or IPv6 modes, while programmatic carrier consumers retain that flexibility. Server tests pin both loopback and all-interface forwarding into the Node listen boundary, and the web smoke continues to exercise the default CLI path.
+Local `dsh web` starts remain reachable at `http://127.0.0.1:3080`; a browser on another machine uses `dsh web --host <specific-address>`. Binding does not add authentication, TLS, or authorization, so the named interface must already be a trusted network. Server and Web-runtime tests pin loopback defaults, specific-address forwarding, automatic Host trust, and canonical URL reporting.

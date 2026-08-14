@@ -31,14 +31,14 @@ Match order is fixed: exact table first, then longest matching prefix, then the 
 ```ts type-equiv
 /** Gateway config: the listen address. */
 interface Config {
-  /** Listen host; the two supported values are loopback and all-interfaces. */
-  host: '127.0.0.1' | '0.0.0.0'
+  /** Non-empty host or IP address passed to `node:http` for binding. */
+  host: string
   /** Listen port; zero requests an OS-assigned port. */
   port: number
 }
 ```
 
-`host` accepts only `127.0.0.1` (default posture) and `0.0.0.0` (deliberate network exposure); there is no TLS, auth, or origin policy, so a non-loopback bind exposes the server to that network. The dist location is an assembly fact of the frontend plugin that claims the seat.
+`host` accepts any non-empty hostname or IP address and passes it to `node:http`; composing applications own exposure policy. There is no TLS or authentication in this package. The dist location is an assembly fact of the frontend plugin that claims the seat.
 
 ## The service
 

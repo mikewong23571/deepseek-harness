@@ -28,13 +28,13 @@ afterEach(async () => {
 })
 
 /** Write a cordis.yml with one webserver row, then boot it through the real Loader. */
-async function loadComposition(port = 0): Promise<Context> {
+async function loadComposition(port = 0, host = '127.0.0.1'): Promise<Context> {
   root = await mkdtemp(join(tmpdir(), 'dsh-webserver-loader-'))
   const configPath = join(root, 'cordis.yml')
   await writeFile(configPath, [
     "- name: '@deepseek-ai/dsh-host-webserver'",
     '  config:',
-    "    host: '127.0.0.1'",
+    `    host: '${host}'`,
     `    port: ${String(port)}`,
     '',
   ].join('\n'))
@@ -198,6 +198,14 @@ describe('real Loader composition', () => {
     expect(upgradedServerClosed).toBe(true)
     upgraded.destroy()
     await expect(request(port, '/probe')).rejects.toThrow()
+  })
+
+  it('accepts a specific interface address through real Loader config', { timeout: 60_000 }, async () => {
+    const loaded = await loadComposition(0, '127.0.0.2')
+    expect(loaded.webServer.host).toBe('127.0.0.2')
+    expect(loaded.webServer.port).toBeGreaterThan(0)
+    const response = await fetch(`http://127.0.0.2:${String(loaded.webServer.port)}/probe`)
+    expect(response.status).toBe(404)
   })
 
   it('fails the fiber when the port is already taken (fail-loud at activation)', { timeout: 60_000 }, async () => {

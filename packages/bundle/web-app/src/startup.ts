@@ -1,6 +1,6 @@
 /**
  * The web app's command-line provider: it parses the `dsh --profile web` flag
- * family (`--host`, `--port`, `--trusted-host`) and its `--help`
+ * family (`--host`, `--port`, `--trusted-host`, configuration access) and its `--help`
  * text, then provides the immutable values as {@link WEB_STARTUP_SERVICE}.
  * Ordinary rows inject that service before reading it from lazy config.
  * @module @deepseek-ai/dsh-web-app/startup
@@ -27,6 +27,8 @@ export interface WebStartupValues {
   port?: number
   /** Explicit `--trusted-host` authorities, in argument order. */
   trustedHosts: string[]
+  /** Whether trusted non-loopback authorities may use the model configuration plane. */
+  allowTrustedHostConfiguration: boolean
 }
 
 /** The web flag family, as commander parsed it. */
@@ -34,6 +36,7 @@ interface WebOptions {
   host?: string
   port?: string
   trustedHost?: string[]
+  allowTrustedHostConfiguration?: boolean
 }
 
 /**
@@ -48,6 +51,7 @@ function webCommand(): Command {
     .option('--host <host>', 'bind host')
     .option('--port <port>', 'listen port; pass 0 to let the OS pick a free one')
     .option('--trusted-host <authority...>', 'extra authority the /api browser-trust fence accepts (host or host:port; repeatable)')
+    .option('--allow-trusted-host-configuration', 'allow trusted non-loopback authorities to read and change model configuration')
     .addHelpText('after', `
 Examples:
   dsh --profile web                          serve on the composed host and port
@@ -76,6 +80,7 @@ export function apply(ctx: Context): void {
       ...options.host !== undefined && { host: options.host },
       ...options.port !== undefined && { port: Number(options.port) },
       trustedHosts: options.trustedHost ?? [],
+      allowTrustedHostConfiguration: options.allowTrustedHostConfiguration ?? false,
     } satisfies WebStartupValues)
   })
   parseCmdline(ctx, program)

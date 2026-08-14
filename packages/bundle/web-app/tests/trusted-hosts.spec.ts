@@ -26,7 +26,12 @@ describe('resolveLanTrust', () => {
     expect(trustedHosts).toEqual(['192.168.1.5', '10.0.0.7', 'harness.internal:3080'])
   })
 
-  it('derives nothing for a loopback bind — extras alone stand, no LAN URL to print', () => {
+  it('trusts a specific non-loopback bind without sampling unrelated interfaces', () => {
+    expect(resolveLanTrust('100.64.0.2', ['harness.internal:3080']))
+      .toEqual({ lanAddresses: ['100.64.0.2'], trustedHosts: ['100.64.0.2', 'harness.internal:3080'] })
+  })
+
+  it('derives nothing for a loopback bind — extras alone stand, no remote URL to print', () => {
     expect(resolveLanTrust('127.0.0.1', [])).toEqual({ lanAddresses: [], trustedHosts: [] })
     expect(resolveLanTrust('127.0.0.1', ['lab.internal']))
       .toEqual({ lanAddresses: [], trustedHosts: ['lab.internal'] })

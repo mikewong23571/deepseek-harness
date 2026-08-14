@@ -57,17 +57,16 @@ export const Config: z<Config> = z.object({
 
 /** Bind-dependent Web values shared by the trust fence and URL display. */
 export interface WebRuntimeValues {
-  /** LAN IPv4 literals sampled once when the server binds all interfaces. */
+  /** Reachable addresses derived from the active bind. */
   lanAddresses: string[]
-  /** LAN literals followed by explicit invocation authorities. */
+  /** Bind-derived addresses followed by explicit invocation authorities. */
   trustedHosts: string[]
 }
 
-/** Environment variable naming the canonical local URL of this Web GUI. */
+/** Environment variable naming the canonical URL of this Web GUI. */
 const DSH_WEB_URL = 'DSH_WEB_URL' as const
 
-// Display-only mirror of the webserver schema's loopback host: the address the
-// local URL always prints. Not a source of truth — the schema is.
+/** The default loopback bind literal. */
 const LOOPBACK_HOST = '127.0.0.1'
 /** The webserver schema's all-interfaces bind literal. */
 const ALL_INTERFACES_HOST = '0.0.0.0'
@@ -87,7 +86,7 @@ export function resolveLanTrust(bindHost: string, extra: readonly string[]): Web
     ? Object.values(networkInterfaces()).flat()
       .filter((iface): iface is NonNullable<typeof iface> => iface !== undefined && iface.family === 'IPv4' && !iface.internal)
       .map(iface => iface.address)
-    : []
+    : bindHost === LOOPBACK_HOST ? [] : [bindHost]
   return { lanAddresses, trustedHosts: [...lanAddresses, ...extra] }
 }
 
@@ -105,11 +104,14 @@ function webSurfacePrompt(webUrl: string): string {
     + 'Do not start a replacement server unless the user asks; if one is needed, use a managed background job and verify its exact URL.'
 }
 
-/** Resolve the canonical loopback URL from the active Web server. */
+/** Resolve the canonical reachable URL from the active Web server. */
 function localWebUrl(ctx: Context): string {
-  const port = ctx.get('webServer')?.port
-  if (port === undefined) throw new Error('web-app: webServer service missing while resolving Web runtime')
-  return `http://${LOOPBACK_HOST}:${String(port)}`
+  const webServer = ctx.get('webServer')
+  if (webServer === undefined || webServer.port === undefined) {
+    throw new Error('web-app: webServer service missing while resolving Web runtime')
+  }
+  const host = webServer.host === ALL_INTERFACES_HOST ? LOOPBACK_HOST : webServer.host
+  return `http://${host}:${String(webServer.port)}`
 }
 
 /** Dist location is workspace knowledge of this bundle: resolved through the frontend package exports, not configured. */
@@ -150,7 +152,7 @@ export function apply(ctx: Context, config: Config): void {
       runtimeCtx.shellEnv.register({
         name: 'web-runtime',
         variables: {
-          [DSH_WEB_URL]: { description: 'Canonical local URL of the DeepSeek Harness Web GUI serving this session.' },
+          [DSH_WEB_URL]: { description: 'Canonical URL of the DeepSeek Harness Web GUI serving this session.' },
         },
         resolve: () => ({ [DSH_WEB_URL]: localWebUrl(runtimeCtx) }),
       })
@@ -162,8 +164,8 @@ export function apply(ctx: Context, config: Config): void {
     // sibling rows (the /api route owner) are still mounting. Await Loader
     // settlement first; a hand-built tree without a Loader prints at once.
     const printUrl = (): void => {
-      // Reuse the exact LAN snapshot provided to the /api trust fence.
-      const lanCandidate = runtime.lanAddresses[0]
+      // Reuse the exact remote snapshot provided to the /api trust fence.
+      const lanCandidate = ctx.webServer.host === ALL_INTERFACES_HOST ? runtime.lanAddresses[0] : undefined
       const port = ctx.webServer.port
       console.log(`dsh web: ${localWebUrl(ctx)}${lanCandidate === undefined ? '' : ` (LAN: http://${lanCandidate}:${String(port)})`}`)
     }

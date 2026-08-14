@@ -768,20 +768,42 @@ describe('envelope observation', () => {
   })
 })
 
-describe('resolveBase', () => {
+describe('client platform primitives', () => {
+  abstract class RecordingRpcIdClient extends AbstractApiClient {
+    lastMinted = ''
+    protected override mintRpcId(): ReturnType<AbstractApiClient['mintRpcId']> {
+      const id = super.mintRpcId()
+      this.lastMinted = id
+      return id
+    }
+  }
+
+  it('mints unary rpcIds without secure-context randomUUID', async () => {
+    const originalCrypto = globalThis.crypto
+    Object.defineProperty(globalThis, 'crypto', {
+      configurable: true,
+      value: { getRandomValues: (bytes: Uint8Array) => bytes.fill(0) },
+    })
+    try {
+      class Probe extends RecordingRpcIdClient {
+        protected async doFetch(): Promise<Response> {
+          return Response.json({ type: 'server-response', rpcId: this.lastMinted, result: { ok: true, value: { items: [] } } })
+        }
+      }
+      const probe = new Probe()
+      await probe.sessions.list({})
+      expect(probe.lastMinted).toBe('00000000-0000-4000-8000-000000000000')
+    } finally {
+      Object.defineProperty(globalThis, 'crypto', { configurable: true, value: originalCrypto })
+    }
+  })
+
   it('prefers a real location.origin and falls back to the internal authority', async () => {
-    class Probe extends AbstractApiClient {
+    class Probe extends RecordingRpcIdClient {
       urls: string[] = []
       protected async doFetch(input: URL): Promise<Response> {
         this.urls.push(input.href)
         return Response.json({ type: 'server-response', rpcId: this.lastMinted, result: { ok: true, value: { items: [] } } })
-      }
-
-      lastMinted = ''
-      protected override mintRpcId(): ReturnType<AbstractApiClient['mintRpcId']> {
-        const id = super.mintRpcId()
-        this.lastMinted = id
-        return id
       }
     }
     const probe = new Probe()

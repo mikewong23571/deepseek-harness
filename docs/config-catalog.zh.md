@@ -407,6 +407,8 @@ export interface ConnectionConfig {
    * that is not a bare, canonical authority fails the plugin load.
    */
   trustedHosts?: string[]
+  /** Allow trusted non-loopback authorities to use the model configuration plane. */
+  allowTrustedHostConfiguration?: boolean
   /** Maximum buffered JSON body for every `/api` request. */
   maxRequestBodyBytes?: number
 }
@@ -794,8 +796,8 @@ export interface Config {
 ```ts config-catalog
 /** Gateway config: the listen address. */
 export interface Config {
-  /** Listen host; the two supported values are loopback and all-interfaces. */
-  host: '127.0.0.1' | '0.0.0.0'
+  /** Non-empty host or IP address passed to `node:http` for binding. */
+  host: string
   /** Listen port; zero requests an OS-assigned port. */
   port: number
 }

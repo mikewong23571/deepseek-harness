@@ -44,7 +44,7 @@ function stageDist(): string {
 }
 
 /** A fake webServer capturing the fallback seat and index taps. */
-function fakeHttpServer(host: '127.0.0.1' | '0.0.0.0' = '127.0.0.1'): { server: WebServer; seat: () => unknown } {
+function fakeHttpServer(host = '127.0.0.1'): { server: WebServer; seat: () => unknown } {
   let fallback: unknown
   const server = {
     host,
@@ -143,7 +143,7 @@ describe('web-app runtime glue', () => {
     await ctx.fiber.dispose()
   })
 
-  it('prints the loopback-only URL line when no LAN snapshot exists', async () => {
+  it('prints the loopback-only URL line when no remote bind exists', async () => {
     stageDist()
     const ctx = new Context()
     ctx.provide('webServer', fakeHttpServer().server)
@@ -151,6 +151,30 @@ describe('web-app runtime glue', () => {
     apply(ctx, new Config({ printUrl: true, surfaceContext: true, trustedHosts: [] }))
     await new Promise(resolve => setTimeout(resolve, 0))
     expect(log).toHaveBeenCalledWith('dsh web: http://127.0.0.1:4567')
+    await ctx.fiber.dispose()
+  })
+
+  it('uses a specific bind as the canonical URL and trusted authority', async () => {
+    stageDist()
+    const ctx = new Context()
+    ctx.provide('webServer', fakeHttpServer('100.64.0.2').server)
+    const contributions: BashContribution[] = []
+    ctx.provide('shellEnv', {
+      register: (contribution: BashContribution) => {
+        contributions.push(contribution)
+        return () => {}
+      },
+    } as never)
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    apply(ctx, new Config({ printUrl: true, surfaceContext: true, trustedHosts: [] }))
+    await ctx.plugin(SystemPrompt, { persona: '' })
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(ctx.get('webRuntime')).toEqual({ lanAddresses: ['100.64.0.2'], trustedHosts: ['100.64.0.2'] })
+    expect(log).toHaveBeenCalledWith('dsh web: http://100.64.0.2:4567')
+    const assembly = await ctx.systemPrompt.assemble()
+    expect(assembly.sections.find(entry => entry.name === 'app:web-surface')?.text).toContain('http://100.64.0.2:4567')
+    const webRuntime = contributions.find(contribution => contribution.name === 'web-runtime')
+    expect(webRuntime?.resolve()).toEqual({ DSH_WEB_URL: 'http://100.64.0.2:4567' })
     await ctx.fiber.dispose()
   })
 
