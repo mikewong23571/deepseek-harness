@@ -6,6 +6,15 @@ DeepSeek Harness is a plugin-based agent harness on vendored Cordis: **everythin
 
 **Remove this section at the first tagged release.** With no external consumers, prefer the correct foundation over compatibility shims: rename or repackage freely and update every reference together. Backends reject old on-disk formats. SQLite uses monotonic `SCHEMA_VERSION`; `dsh-session` keeps `SESSION_FORMAT_VERSION` at `0` with no compatibility promise.
 
+## Self-modification discipline: protect port 3080
+
+When the user is driving you through the web UI on `http://100.64.0.2:3080`, that instance is the lifeline of the session — if it breaks, the ability to fix anything breaks with it. Therefore:
+
+- **Never develop in the main checkout** (the repo this file lives in) while it serves 3080. Treat it as read-only.
+- **Never bind any dev/preview code to port 3080.** Ports 3081–3089 are the preview pool.
+- Develop via `scripts/preview.sh` (full workflow: [docs/preview-workflow.md](docs/preview-workflow.md)): `new <name>` to create a worktree → edit there → `up <name>` to serve a preview on 308X → the user verifies in the browser → merge back only when approved.
+- **Restarting 3080 to pick up merged code is a deliberate human action.** Never restart, kill, or reconfigure the stable instance on your own initiative.
+
 ## Repository layout
 
 ```
