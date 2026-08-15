@@ -18,7 +18,7 @@ import {
   assertFixtureInventory, captureStableAria, compareOrRefreshGolden, fixtureUserPrompts,
   launchWebScaffold, recordFixture, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
-import { connectFreshWorkspace, newEnglishPage, saveFailureShot } from './support.ts'
+import { connectFreshWorkspace, newEnglishPage, saveFailureShot, settleFrameMode } from './support.ts'
 
 const SNAPSHOT_DIR = fileURLToPath(new URL('./snapshots/question-composer', import.meta.url))
 const FIXTURE = join(SNAPSHOT_DIR, 'session.jsonl')
@@ -101,6 +101,9 @@ describe('web e2e: resident question composer round trip', () => {
       const original = page.viewportSize() ?? { width: 1680, height: 1000 }
       for (const height of [520, 440, 380]) {
         await page.setViewportSize({ width: 900, height })
+        // 900px crosses the mobile-tree breakpoint: wait out the hard flip so
+        // the squeeze reads never straddle it.
+        await settleFrameMode(page, true)
         const squeeze = await composer.evaluate((card) => {
           // Role/ARIA selectors, not the CSS-module class names: the built
           // client hashes those.
@@ -130,6 +133,7 @@ describe('web e2e: resident question composer round trip', () => {
         expect(squeeze.spill).toBeLessThan(0.6)
       }
       await page.setViewportSize(original)
+      await settleFrameMode(page, original.width < 1024)
     }
 
     const blue = composer.getByRole('checkbox', { name: 'Blue' })

@@ -113,6 +113,15 @@
   cursor: default;
 }
 
+/* Mobile: the frame's top header already shows the current session (and is
+   the switcher into the session list), so the in-column breadcrumb would
+   duplicate it — hide the crumbs, keep tabs and actions. */
+@media (max-width: 1023px) {
+  .crumbs {
+    display: none;
+  }
+}
+
 .headerActions {
   display: flex;
   flex: none;

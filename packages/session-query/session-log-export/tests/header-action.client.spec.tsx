@@ -38,16 +38,16 @@ function bench() {
 afterEach(cleanup)
 
 describe('Session export Header action', () => {
-  it('renders the 111×32 text capsule and downloads through the shared controller', async () => {
+  it('renders the icon-only button (name via aria-label) and downloads through the shared controller', async () => {
     const b = bench()
-    const button = b.view.getByRole('button', { name: 'Session log' })
+    const button = b.view.getByRole('button', { name: 'Export session log' })
     expect(button.querySelector('svg')).not.toBeNull()
     fireEvent.click(button)
     await waitFor(() => { expect(b.request).toHaveBeenCalledWith(SID) })
     expect(await b.view.findByRole('dialog', { name: 'Session download started' })).toBeTruthy()
   })
 
-  it('disables the capsule while either entry path downloads this Session', async () => {
+  it('disables the button while either entry path downloads this Session', async () => {
     const b = bench()
     let release!: (response: Response) => void
     const pending = new Promise<Response>((resolve) => { release = resolve })
@@ -62,7 +62,7 @@ describe('Session export Header action', () => {
     } as unknown as SessionLogDownloadDialogProps)} />)
 
     const download = controller.download(SID)
-    const button = b.view.getByRole('button', { name: 'Session log' })
+    const button = b.view.getByRole('button', { name: 'Export session log' })
     await waitFor(() => { expect(button.getAttribute('aria-busy')).toBe('true') })
     expect((button as HTMLButtonElement).disabled).toBe(true)
     release(new Response('zip'))

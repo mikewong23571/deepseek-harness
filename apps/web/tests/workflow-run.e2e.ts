@@ -15,7 +15,7 @@ import {
   type WebScaffold,
 } from './scaffold.ts'
 import {
-  connectFreshWorkspace, newEnglishPage, REPO_ROOT, saveFailureShot,
+  connectFreshWorkspace, newEnglishPage, REPO_ROOT, saveFailureShot, settleFrameMode,
 } from './support.ts'
 
 const MODE = webSnapshotMode()
@@ -90,6 +90,9 @@ describe.skipIf(MODE === 'record')('web e2e: durable workflow run in Chat', () =
 
     const lightColor = await member.locator('[data-member-label]').evaluate(element => getComputedStyle(element).color)
     await page.setViewportSize({ width: 560, height: 800 })
+    // 560px crosses the mobile-tree breakpoint: wait out the hard flip so
+    // the pinned-width panel reads never straddle it.
+    await settleFrameMode(page, true)
     await page.evaluate(() => { document.body.setAttribute('data-ds-dark-theme', '') })
     const darkNarrow = await page.locator('[data-workflow-run]').evaluate((element) => {
       const panel = element as HTMLElement
@@ -136,6 +139,7 @@ describe.skipIf(MODE === 'record')('web e2e: durable workflow run in Chat', () =
       document.body.removeAttribute('data-ds-dark-theme')
     })
     await page.setViewportSize({ width: 1280, height: 800 })
+    await settleFrameMode(page, false)
 
     await member.click()
     await page.getByText(CHILD_PROMPT, { exact: true }).waitFor({ timeout: 15_000 })

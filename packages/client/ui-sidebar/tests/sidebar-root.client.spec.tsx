@@ -21,16 +21,16 @@ afterEach(() => {
 // props share; stub them as never-called functions.
 const neverHook = (() => { throw new Error('shell must not read global hooks') }) as never
 
-function mountShell({ collapsed = false, width = 300 }: { collapsed?: boolean; width?: number } = {}) {
+function mountShell({ collapsed = false, width = 300, picker = false }: { collapsed?: boolean; width?: number; picker?: boolean } = {}) {
   const startSession = vi.fn()
   const toggleSidebar = vi.fn()
   let regionOwner: SidebarSectionOwnerProps | undefined
   let settingsOwner: SidebarSettingsOwnerProps | undefined
   let footerActionOwner: SidebarFooterActionOwnerProps | undefined
-  let current = { collapsed, width }
+  let current = { collapsed, width, picker }
   const root = () => (
     <SidebarRoot
-      collapsed={current.collapsed} width={current.width}
+      collapsed={current.collapsed} width={current.width} picker={current.picker}
       useSessions={neverHook} useWorkspaces={neverHook}
       startSession={startSession} toggleSidebar={toggleSidebar} t={t}
       renderSlot={((
@@ -115,5 +115,22 @@ describe('SidebarRoot shell', () => {
     const b = mountShell({ collapsed: true })
     expect(b.regionOwner().wide).toBe(false)
     expect(screen.getByRole('button', { name: 'Open sidebar' })).toBeTruthy()
+  })
+
+  it('picker mode renders only the picking surface, always wide', () => {
+    const b = mountShell({ picker: true })
+    // New Session plus the wide browsing region; no brand row, rail toggle,
+    // or footer actions — the frame's header owns those.
+    fireEvent.click(screen.getByRole('button', { name: 'New session' }))
+    expect(b.startSession).toHaveBeenCalledOnce()
+    expect(b.regionOwner().wide).toBe(true)
+    expect(screen.queryByRole('button', { name: 'Collapse sidebar' })).toBeNull()
+    expect(screen.queryByTestId('footer-action-seat')).toBeNull()
+    // The settings seat stays mounted (its portalled panel is the mobile
+    // settings surface), hidden by the picker's own chrome class.
+    expect(b.settingsOwner().wide).toBe(true)
+    // The region can never request an expand: the picker has no rail.
+    b.regionOwner().expandSidebar()
+    expect(b.toggleSidebar).not.toHaveBeenCalled()
   })
 })

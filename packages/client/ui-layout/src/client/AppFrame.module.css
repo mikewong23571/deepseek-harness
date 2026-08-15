@@ -117,3 +117,161 @@
 .overlayLayer > * {
   pointer-events: auto;
 }
+
+/* ===== Mobile tree (viewport below SIDEBAR_AUTO_COLLAPSE) =====
+   The frame becomes a two-row grid: a full-width top header and the chat
+   body. The sidebar column leaves the grid flow entirely (a fixed dropdown
+   picker under the header), the details column stays mounted at a zero
+   track, and no drag handles render. */
+
+.frame[data-narrow] .mobileHeader {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 12px;
+  box-sizing: border-box;
+  background: var(--dsw-specific-sidebar-fill);
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  /* Above the picker mask (39) and the picker (40): the header stays
+     interactive while the picker is open (close via switcher, open
+     settings) — grid items stack with z-index even without positioning. */
+  z-index: 41;
+}
+
+/* The switcher is the session title + a chevron, tappable to open the picker. */
+.sessionSwitcher {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  cursor: pointer;
+  color: var(--dsw-alias-label-primary);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  text-align: left;
+  overflow: hidden;
+}
+
+.sessionSwitcher:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.sessionSwitcherTitle {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sessionSwitcherChevron {
+  flex: none;
+  color: var(--dsw-alias-label-secondary);
+}
+
+/* Settings gear at the top right of the mobile header. */
+.settingsButton {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  color: var(--dsw-alias-label-primary);
+}
+
+.settingsButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+/* Desktop: the conversation/details wrapper generates no box — its children
+   stay the frame grid's items. Mobile swaps the class for .mobileBody below,
+   which becomes the row-2 grid item. One wrapper at a stable JSX position:
+   the breakpoint flip changes the class only, never remounting the subtree. */
+.bodyContents {
+  display: contents;
+}
+
+/* Chat body: the conversation takes all remaining width; the details column
+   keeps its zero track so the mounted subtree never unmounts. */
+.mobileBody {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 0px;
+  grid-template-rows: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* The sidebar becomes a dropdown picker anchored under the 53px header:
+   project/session list only (the occupant reads the picker owner prop),
+   capped height with its own scroll, closing into a slight upward drift. */
+.frame[data-narrow] .sidebarCol {
+  position: fixed;
+  top: 60px;
+  left: 12px;
+  right: 12px;
+  max-height: min(560px, calc(100vh - 76px));
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 16px;
+  box-shadow: var(--dsw-shadow-lv3);
+  z-index: 40;
+  opacity: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+  transition:
+    opacity var(--ds-transition-duration-slow) var(--ds-ease-in-out),
+    transform var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+}
+
+.frame[data-narrow][data-picker-open] .sidebarCol {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .frame[data-narrow] .sidebarCol {
+    transition: none;
+  }
+}
+
+/* Mask behind the open picker: closes it on tap. */
+.pickerMask {
+  position: fixed;
+  inset: 0;
+  z-index: 39;
+  background: var(--dsw-alias-bg-mask-1);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+}
+
+.frame[data-narrow][data-picker-open] .pickerMask {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pickerMask {
+    transition: none;
+  }
+}

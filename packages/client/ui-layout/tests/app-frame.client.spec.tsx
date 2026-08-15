@@ -55,6 +55,7 @@ function hookOf<T>(inst: { subscribe: (fn: () => void) => () => void; getSnapsho
 function mountFrame() {
   window.innerWidth = frameWidth // first-render viewport source before the observer fires
   const instance = createLayoutStore().create()
+  const openSettings = vi.fn()
   const slotCalls: { key: string; props: unknown }[] = []
   const renderSlot = ((key: string, owner: object) => {
     slotCalls.push({ key, props: owner })
@@ -88,11 +89,12 @@ function mountFrame() {
       useSessions={useSessions}
       useWorkspaces={((sel: (s: WorkspaceListState) => unknown) => sel(workspaceState)) as never}
       SessionProvider={SessionProviderStub}
+      openSettings={openSettings}
     />
   )
   const utils = render(element())
   const frame = utils.container.firstElementChild as HTMLElement
-  return { instance, frame, slotCalls, rerenderFrame: () => { utils.rerender(element()) }, ...utils }
+  return { instance, frame, slotCalls, openSettings, rerenderFrame: () => { utils.rerender(element()) }, ...utils }
 }
 
 function tracks(frame: HTMLElement): number[] {
@@ -216,7 +218,7 @@ describe('AppFrame', () => {
 
   it('sidebar slot receives live concession output as owner props', () => {
     const { slotCalls } = mountFrame()
-    expect(slotCalls.find(c => c.key === 'sidebar')!.props).toEqual({ collapsed: false, width: 280 })
+    expect(slotCalls.find(c => c.key === 'sidebar')!.props).toEqual({ collapsed: false, width: 280, picker: false })
   })
 
   it('sidebar drag widens through rAF-batched pointer moves', () => {
@@ -258,7 +260,7 @@ describe('AppFrame', () => {
     expect(getByTestId('sidebar-content')).toBeTruthy()
     expect(frame.hasAttribute('data-sidebar-collapsed')).toBe(true)
     const lastSidebarCall = slotCalls.filter(c => c.key === 'sidebar').at(-1)!
-    expect(lastSidebarCall.props).toEqual({ collapsed: true, width: SIDEBAR_COLLAPSED })
+    expect(lastSidebarCall.props).toEqual({ collapsed: true, width: SIDEBAR_COLLAPSED, picker: false })
   })
 
   it('viewport shrink triggers the concession chain via ResizeObserver', () => {
@@ -284,47 +286,107 @@ describe('AppFrame', () => {
   })
 })
 
-describe('AppFrame — narrow-viewport auto-collapse', () => {
-  it('mounts collapsed below the breakpoint with no sidebar handle', () => {
+describe('AppFrame — narrow-viewport mobile tree', () => {
+  it('renders the top header over a full-width chat with no sidebar rail', () => {
     frameWidth = 980
     const { frame, slotCalls } = mountFrame()
-    expect(tracks(frame)).toEqual([SIDEBAR_COLLAPSED, 0])
+    // The chat takes the whole width: no rail track, no details track.
+    expect(tracks(frame)).toEqual([0, 0])
+    expect(frame.hasAttribute('data-narrow')).toBe(true)
     expect(frame.hasAttribute('data-sidebar-collapsed')).toBe(true)
-    expect(slotCalls.filter(c => c.key === 'sidebar').at(-1)!.props).toEqual({ collapsed: true, width: SIDEBAR_COLLAPSED })
+    expect(frame.hasAttribute('data-picker-open')).toBe(false)
+    // The mobile header shows the current session title and a settings gear.
+    const switcher = frame.querySelector('[class*="sessionSwitcher"]')!
+    expect(switcher.textContent).toContain('Test')
+    expect(frame.querySelector('[class*="settingsButton"]')).toBeTruthy()
+    // The sidebar slot renders the dropdown picker: always-wide content
+    // (collapsed stays false) at the viewport-minus-insets width; the frame
+    // owns the picker's visibility.
+    expect(slotCalls.filter(c => c.key === 'sidebar').at(-1)!.props)
+      .toEqual({ collapsed: false, width: 956, picker: true })
     expect(frame.querySelectorAll('[class*="handle"]')).toHaveLength(0)
   })
 
-  it('narrow toggle re-expands over the squeezed center and back', () => {
+  it('picker toggle opens the dropdown over the full-width chat', () => {
     frameWidth = 980
-    const { frame, instance } = mountFrame()
+    const { frame, instance, slotCalls, getByTestId } = mountFrame()
     act(() => { instance.actions.toggleSidebar() })
-    expect(tracks(frame)).toEqual([280, 0])
+    expect(frame.hasAttribute('data-picker-open')).toBe(true)
     expect(frame.hasAttribute('data-sidebar-collapsed')).toBe(false)
-    expect(frame.querySelectorAll('[class*="handle"]')).toHaveLength(1)
+    expect(tracks(frame)).toEqual([0, 0])
+    expect(slotCalls.filter(c => c.key === 'sidebar').at(-1)!.props)
+      .toEqual({ collapsed: false, width: 956, picker: true })
+    expect(getByTestId('sidebar-content')).toBeTruthy()
+    expect(frame.querySelector('[class*="pickerMask"]')).toBeTruthy()
+    expect(frame.querySelectorAll('[class*="handle"]')).toHaveLength(0)
     act(() => { instance.actions.toggleSidebar() })
-    expect(tracks(frame)).toEqual([SIDEBAR_COLLAPSED, 0])
+    expect(frame.hasAttribute('data-picker-open')).toBe(false)
+    expect(frame.hasAttribute('data-sidebar-collapsed')).toBe(true)
   })
 
-  it('a wide-closed preference re-expands at the contract default while narrow', () => {
+  it('the mask closes the open picker', () => {
+    frameWidth = 980
+    const { frame, instance } = mountFrame()
+    const mask = frame.querySelector('[class*="pickerMask"]')!
+    // A tap while closed is a no-op (the mask is transparent to gestures).
+    act(() => { mask.dispatchEvent(new MouseEvent('click', { bubbles: true })) })
+    expect(frame.hasAttribute('data-picker-open')).toBe(false)
+    act(() => { instance.actions.toggleSidebar() })
+    expect(frame.hasAttribute('data-picker-open')).toBe(true)
+    act(() => { mask.dispatchEvent(new MouseEvent('click', { bubbles: true })) })
+    expect(frame.hasAttribute('data-picker-open')).toBe(false)
+  })
+
+  it('the settings gear opens settings through the layout signal', () => {
+    frameWidth = 980
+    const { frame, openSettings } = mountFrame()
+    const gear = frame.querySelector('[class*="settingsButton"]')!
+    act(() => { gear.dispatchEvent(new MouseEvent('click', { bubbles: true })) })
+    expect(openSettings).toHaveBeenCalledTimes(1)
+  })
+
+  it('the settings gear closes an open picker behind the panel', () => {
+    frameWidth = 980
+    const { frame, instance, openSettings } = mountFrame()
+    act(() => { instance.actions.toggleSidebar() })
+    expect(frame.hasAttribute('data-picker-open')).toBe(true)
+    const gear = frame.querySelector('[class*="settingsButton"]')!
+    act(() => { gear.dispatchEvent(new MouseEvent('click', { bubbles: true })) })
+    expect(openSettings).toHaveBeenCalledTimes(1)
+    expect(frame.hasAttribute('data-picker-open')).toBe(false)
+  })
+
+  it('a wide-closed preference re-expands as the picker while narrow', () => {
     frameWidth = 1920
     const { frame, instance } = mountFrame()
     act(() => { instance.actions.toggleSidebar() }) // close while wide: preference 0
     frameWidth = 980
     act(() => { fireResize?.(); vi.advanceTimersByTime(20) })
     act(() => { instance.actions.toggleSidebar() })
-    expect(tracks(frame)).toEqual([280, 0])
+    expect(frame.hasAttribute('data-picker-open')).toBe(true)
+    expect(tracks(frame)).toEqual([0, 0])
     expect(instance.getSnapshot().sidebar).toBe(0) // preference untouched
   })
 
-  it('shrinking across the breakpoint auto-collapses; re-widening restores the drag width', () => {
+  it('shrinking across the breakpoint hides the rail; re-widening restores the drag width', () => {
     const { frame, instance } = mountFrame()
     act(() => { instance.actions.setSidebar(400) })
     frameWidth = 980
     act(() => { fireResize?.(); vi.advanceTimersByTime(20) })
-    expect(tracks(frame)).toEqual([SIDEBAR_COLLAPSED, 0])
+    expect(tracks(frame)).toEqual([0, 0])
     frameWidth = 1920
     act(() => { fireResize?.(); vi.advanceTimersByTime(20) })
     expect(tracks(frame)).toEqual([400, 0])
+  })
+
+  it('picking a session from the picker closes it', () => {
+    frameWidth = 980
+    const { frame, instance, rerenderFrame } = mountFrame()
+    act(() => { instance.actions.toggleSidebar() })
+    expect(frame.hasAttribute('data-picker-open')).toBe(true)
+    selectedSession.current = 's-next' as SessionId
+    act(() => { rerenderFrame() })
+    expect(frame.hasAttribute('data-picker-open')).toBe(false)
   })
 })
 

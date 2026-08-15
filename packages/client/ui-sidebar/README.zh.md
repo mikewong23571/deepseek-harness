@@ -12,6 +12,8 @@ New Session 会启动运行时的页面局部前端 Session Intent。运行时�
 
 栏内的滚动条是一种指针可供性：只要指针不在栏内，外壳就把 ui-theme 的[滚动条间接层](../ui-theme/README.md)重新绑定为 `transparent`；指针离开后滑块再保留 2 秒，因此没人指向的列表不会带着滚动条。避免行位移的空间预留属于滚动区域本身（[ui-workspace](../ui-workspace/README.md)），所以显示滑块不会引起重排。
 
+在布局的移动端树中，该栏变为框架顶部页头下方的下拉选择器（`picker` owner prop）：外壳只渲染「新建会话」按钮和始终为 wide 的浏览区——不再有品牌行、轨道或页脚——并以不可见方式保持设置席位挂载，使其 portal 面板可从页头齿轮打开；下拉的开合由框架持有。
+
 页脚承载 `sidebar.settings`：侧边栏只渲染固定在底部的布局 slot，并共享其栏状态（`wide`）；ui-settings 在此注册触发行和设置面板。
 
 `/client` 导出表层只包含插件主体（`apply`／`inject`）及约定类型；SidebarRoot、行组件和树派生仍由 slot 注册封装在包内。

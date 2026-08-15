@@ -12,6 +12,8 @@ During a live collapse, the shell holds the expanded content at its current widt
 
 Scrollbars in the column are a pointer affordance: the shell rebinds ui-theme's [scrollbar indirection](../ui-theme/README.md) to `transparent` whenever the pointer is outside it, and keeps the thumb drawn for 2s after the pointer leaves, so a list nobody is pointing at carries no bar. The reservation that keeps rows from moving belongs to the scrolling region ([ui-workspace](../ui-workspace/README.md)), so revealing a thumb never reflows.
 
+In the layout's mobile tree the column becomes a dropdown picker under the frame's top header (the `picker` owner prop): the shell renders only the New Session button and the always-wide browsing region — no brand row, rail, or foot — plus the settings seat mounted invisibly so its portalled panel stays reachable from the header gear, and the frame owns the dropdown's visibility.
+
 The foot is the `sidebar.settings` seat: the sidebar renders only the bottom-pinned layout slot and shares its column state (`wide`); ui-settings registers the trigger row and settings panel there.
 
 The `/client` exports are the plugin body (`apply`/`inject`) plus the contract types only; SidebarRoot, the row components, and the tree derivation remain package-internal behind the slot registration.

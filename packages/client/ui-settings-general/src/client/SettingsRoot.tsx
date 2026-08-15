@@ -1,6 +1,7 @@
 /**
- * Settings shell root: the sidebar-foot trigger row plus the centered modal
- * panel (figma 501:29947, 1080x700) with the section nav rail. The shell is
+ * Settings shell root: the sidebar-foot trigger row plus the modal panel
+ * (figma 501:29947, 1080x700; a full-screen sheet with a horizontal section
+ * strip on mobile) with the section nav rail. The shell is
  * a pure composition face — every piece of text (trigger label, panel title,
  * close label, sections) arrives from registrants through slots; accessible
  * names resolve to that content (trigger: its own text; dialog:
@@ -11,6 +12,7 @@
  * to the step, so a mounted-but-deciding step paints nothing here.
  */
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import {
   IconAgentPresetOutline16, IconCloseOutline16, IconDataOutline16,
@@ -36,9 +38,13 @@ type PanelProps = {
 }
 
 /**
- * The modal layer: full-viewport mask + centered panel. Close paths: the
- * header button, a mask click, and document-level Escape (mounted only while
- * open, so the listener lifetime is the panel's).
+ * The modal layer: full-viewport mask + centered panel (full-screen sheet on
+ * mobile, SettingsRoot.module.css). Close paths: the header button, a mask
+ * click, and document-level Escape (mounted only while open, so the listener
+ * lifetime is the panel's). The overlay portals to document.body: rendered
+ * inline it would sit inside the sidebar column, whose mobile dropdown
+ * transform makes it a containing block for fixed descendants and would clip
+ * the panel into the dropdown box.
  */
 function SettingsPanel({ rows, renderSlot, activeId, onSelect, onClose }: PanelProps) {
   // Entries can unmount underneath the requested id, so the render-time
@@ -58,7 +64,7 @@ function SettingsPanel({ rows, renderSlot, activeId, onSelect, onClose }: PanelP
   const closeButton = useRef<HTMLButtonElement | null>(null)
   useEffect(() => { closeButton.current?.focus() }, [])
 
-  return (
+  return createPortal((
     <div className={css.overlay} role="presentation">
       <div className={css.mask} aria-hidden="true" onClick={onClose} />
       <div className={css.panel} role="dialog" aria-modal="true" aria-labelledby={titleId}>
@@ -93,7 +99,7 @@ function SettingsPanel({ rows, renderSlot, activeId, onSelect, onClose }: PanelP
         </div>
       </div>
     </div>
-  )
+  ), document.body)
 }
 
 /**
@@ -102,18 +108,20 @@ function SettingsPanel({ rows, renderSlot, activeId, onSelect, onClose }: PanelP
  * @returns the settings shell element tree.
  */
 export function SettingsRoot(props: SettingsRootComponentProps) {
-  const { wide, useSections, useOnboardingSteps, useSessions, renderSlot } = props
-  const [open, setOpen] = useState(false)
+  const { wide, useSections, useOnboardingSteps, useSessions, useSettingsOpen, setSettingsOpen, renderSlot } = props
+  // Open state is the shared store: the desktop trigger and the mobile header
+  // gear (via ctx.layout) write the same source, so one panel serves both.
+  const open = useSettingsOpen(state => state.open)
   const [activeId, setActiveId] = useState<string | undefined>(undefined)
   const [completedOnboarding, setCompletedOnboarding] = useState<ReadonlySet<string>>(() => new Set())
   const close = useCallback(() => {
-    setOpen(false)
+    setSettingsOpen(false)
     setActiveId(undefined)
-  }, [])
+  }, [setSettingsOpen])
   const openSection = useCallback((id: string) => {
     setActiveId(id)
-    setOpen(true)
-  }, [])
+    setSettingsOpen(true)
+  }, [setSettingsOpen])
 
   // The ledger tick keeps the nav rows fresh: registrants re-register with
   // freshly localized text on locale change, and the trigger/header/close
@@ -146,7 +154,7 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
         className={clsx(css.trigger, !wide && css.rail)}
         aria-haspopup="dialog"
         aria-expanded={open}
-        onClick={() => { setOpen(true) }}
+        onClick={() => { setSettingsOpen(true) }}
       >
         {renderSlot('settings.trigger', { wide })}
       </button>

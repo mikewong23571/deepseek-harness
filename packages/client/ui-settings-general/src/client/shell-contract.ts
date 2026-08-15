@@ -29,7 +29,8 @@ export interface SettingsOnboardingStep {
 /**
  * Registrant-private injected share of the settings shell (assembled in
  * apply): the ledger's nav-row projection as a hooks-compartment source —
- * the shell reads no locale state and subscribes through the bound hook.
+ * the shell reads no locale state and subscribes through the bound hook —
+ * plus the shared panel open-state (every trigger writes the same store).
  */
 export type SettingsRootInjected = {
   hooks: {
@@ -37,14 +38,19 @@ export type SettingsRootInjected = {
     sections: HostObservable<readonly SettingsSectionRow[]>
     /** settings.onboarding ledger projected into coordinator order. */
     onboardingSteps: HostObservable<readonly SettingsOnboardingStep[]>
+    /** Shared settings panel open-state (desktop trigger and mobile header gear). */
+    settingsOpen: HostObservable<{ open: boolean }>
   }
+  /** Open/close the settings panel through the shared open-state store. */
+  setSettingsOpen: (open: boolean) => void
 }
 
 /**
  * Full component props of the settings shell root: the sidebar owner share
  * (wide/rail state) plus the declared render shares and the injected face
- * (hooks compartment bound to useSections). No store is registered — modal
- * open state and active section id are component-local viewing state.
+ * (hooks compartment bound to useSections, shared open-state seat). No store
+ * is registered — modal open state lives in the shared store, the active
+ * section id is component-local viewing state.
  */
 export type SettingsRootComponentProps =
   PropsRuntime<'sidebar.settings'>

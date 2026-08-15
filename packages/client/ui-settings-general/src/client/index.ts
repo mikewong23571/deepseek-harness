@@ -8,6 +8,7 @@
  * Export discipline: packages/client/AGENTS.md.
  */
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-api-remotes/client'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-web-react'
@@ -17,6 +18,9 @@ import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-web-react'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 // Type-only: pulls ctx.locale into this program.
 import type {} from '@deepseek-ai/dsh-client-locale/client'
+// Type-only: pulls the layout service face (ctx.layout settings signal) into
+// this program; the runtime call goes through the cordis service.
+import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {
   SettingsOnboardingStep, SettingsRootInjected, SettingsSectionRow,
 } from './shell-contract.ts'
@@ -53,8 +57,9 @@ const NS = 'settings'
  * Required services (cordis fiber inject). The target slots are declared by
  * ui-settings' apply, whose activation order relative to this one is NOT
  * constrained; registrations depend on their slots through `slots.inject()`.
+ * `layout` carries the settings-open signal from the mobile header gear.
  */
-export const inject = ['slots', 'locale', 'connection']
+export const inject = ['slots', 'locale', 'connection', 'layout']
 
 /**
  * Register the `settings` dictionaries, the chrome content, and the General
@@ -81,6 +86,15 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.on('connection/reset', () => {
     refreshDocumentIfLoaded(documentController)
   }), 'ui-settings-general: metadata invalidations')
+
+  // Shared settings panel open-state: the sidebar trigger writes it directly,
+  // and the mobile header gear reaches it through the layout service signal —
+  // one source of truth, one panel, however it was opened.
+  const settingsOpen = createSnapshotStore({ open: false })
+  ctx.effect(() => ctx.layout.onOpenSettings(() => {
+    settingsOpen.update((state) => { state.open = true })
+  }), 'ui-settings-general: settings-open signal')
+
   // The settings shell: this package occupies the sidebar-owned hole and
   // declares the settings slots. Ledger → nav-row projection as an observable
   // source (uSES contract: getSnapshot returns the cached rows until the
@@ -92,6 +106,9 @@ export function apply(ctx: ClientContext): void {
   let onboardingVersion = -1
   let onboardingSteps: readonly SettingsOnboardingStep[] = []
   const shellInjected = (): SettingsRootInjected => ({
+    setSettingsOpen: (open) => {
+      settingsOpen.update((state) => { state.open = open })
+    },
     hooks: {
       sections: {
         getSnapshot: () => {
@@ -137,6 +154,7 @@ export function apply(ctx: ClientContext): void {
         },
         subscribe: listener => ctx.slots.subscribe('settings.onboarding', listener),
       },
+      settingsOpen,
     },
   })
   ctx.slots.inject('sidebar.settings', () => ctx.slots.register({

@@ -27,11 +27,25 @@ export interface ILayout {
   openDetails(): void
   /** Close the details panel. */
   closeDetails(): void
+  /**
+   * Open the settings panel. The settings shell (ui-settings-general) owns
+   * the panel's open state; this is the cross-plugin signal the mobile
+   * header gear uses (the desktop trigger lives beside the panel itself).
+   * A no-op while no listener is subscribed.
+   */
+  openSettings(): void
+  /**
+   * Subscribe to settings-open signals (see {@link openSettings}).
+   * @param listener - invoked when the settings panel should open.
+   * @returns the unsubscriber.
+   */
+  onOpenSettings(listener: () => void): () => void
 }
 
 /** Cross-plugin panel-action face (ctx.layout). */
 export class LayoutController implements ILayout {
   #panels: PanelActions | undefined
+  #settingsListeners = new Set<() => void>()
 
   /**
    * Adopt the root entry's bound store actions. Called from the root
@@ -57,6 +71,19 @@ export class LayoutController implements ILayout {
   /** Close the details panel. */
   closeDetails(): void {
     this.#require().closeDetails()
+  }
+
+  /** Open the settings panel (see {@link ILayout.openSettings}). */
+  openSettings(): void {
+    for (const listener of this.#settingsListeners) listener()
+  }
+
+  /** Subscribe to settings-open signals (see {@link ILayout.onOpenSettings}). */
+  onOpenSettings(listener: () => void): () => void {
+    this.#settingsListeners.add(listener)
+    return () => {
+      this.#settingsListeners.delete(listener)
+    }
   }
 
   #require(): PanelActions {

@@ -49,6 +49,16 @@ function mount({
       byId: { 'active-session': { blank: false } },
     })) as never
   const unusedHook = (() => { throw new Error('unused by SettingsRoot') }) as never
+  // Shared open-state stand-in: the same observable contract the shell's
+  // injected store exposes; setSettingsOpen plays a store write.
+  let open = false
+  const openListeners = new Set<() => void>()
+  const setSettingsOpen = (value: boolean) => {
+    act(() => {
+      open = value
+      for (const fn of [...openListeners]) fn()
+    })
+  }
   const props: SettingsRootComponentProps = {
     useSessions,
     useWorkspaces: unusedHook,
@@ -63,6 +73,16 @@ function mount({
       }, [])
       return select(current)
     },
+    useSettingsOpen: (select) => {
+      const [, force] = useState(0)
+      useEffect(() => {
+        const listener = () => { force(n => n + 1) }
+        openListeners.add(listener)
+        return () => { openListeners.delete(listener) }
+      }, [])
+      return select({ open })
+    },
+    setSettingsOpen,
     renderSlot,
   }
   const view = render(<SettingsRoot {...props} />)

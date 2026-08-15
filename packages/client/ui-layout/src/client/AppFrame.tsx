@@ -9,19 +9,43 @@
  * entries retain identity. Pure component: everything arrives
  * through the three framework shares — zero cordis or framework imports,
  * zero self-made hooks.
+ *
+ * Below the auto-collapse breakpoint the frame switches to the mobile tree:
+ * a full-width top header (current session switcher + settings gear), the
+ * conversation filling the remaining space (no sidebar rail), and the
+ * sidebar content as a dropdown picker under the header (project/session
+ * list only — the occupant reads the picker owner prop). The picker is the
+ * narrow-expand override (stores.ts narrowExpanded) — the same toggle the
+ * rail used — so a manual expand still means "sidebar over the center".
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PropsRenderSlots, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
+import {
+  IconChevronDownOutline14, IconSettingsOutline16,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import { computeColumns, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_DEFAULT } from './columns.ts'
 import type { createLayoutStore } from './stores.ts'
+import type { LayoutKey } from './locales.ts'
 import css from './AppFrame.module.css'
+
+/** Mobile picker geometry: side insets for the dropdown under the header. */
+const PICKER_INSET = 12
+
+/** Locale fallback when the entry renders without the locale seat (tests). */
+const identityT = (key: LayoutKey): string => key
 
 /** Full composed props: runtime share + child-slot render share + store share. */
 export type AppFrameProps =
   & PropsRuntime<'root'>
   & PropsRenderSlots<'sidebar' | 'conversation' | 'details' | 'shell.overlay'>
   & PropsStore<ReturnType<typeof createLayoutStore>>
+  & {
+    /** Open the settings panel through the layout service (mobile header gear). */
+    openSettings: () => void
+    /** Standard locale seat for the mobile header copy. */
+    t?: (key: LayoutKey) => string
+  }
 
 /** Center column grid item (session-body building block). */
 function CenterColumn(props: { children?: ReactNode }) {
@@ -89,11 +113,17 @@ export function AppFrame({
   useSessions,
   actions,
   renderSlot,
+  openSettings,
+  t = identityT,
 }: AppFrameProps) {
   const panels = useStore(s => s)
   const detailsSession = useSessions((s) => {
     const current = s.current
     return current !== undefined && s.byId[current]?.blank === false ? current : undefined
+  })
+  const currentTitle = useSessions((s) => {
+    const current = s.current
+    return current === undefined ? undefined : s.byId[current]?.displayTitle
   })
   const frameRef = useRef<HTMLDivElement | null>(null)
   const [viewport, setViewport] = useState(() => window.innerWidth)
@@ -130,16 +160,24 @@ export function AppFrame({
   // Narrow viewports auto-collapse the sidebar; the store mirror keeps
   // toggleSidebar's semantics right (narrow toggles flip the manual
   // re-expand override, stores.ts). Collapsed is decided here, so the
-  // solver stays breakpoint-free: a narrow re-expand passes the preference
-  // (or the default when the wide preference is closed) and the center
-  // absorbs the squeeze.
+  // solver stays breakpoint-free: narrow always solves to the full-width
+  // chat below, and the override drives only the picker's open attribute.
   const narrow = viewport < SIDEBAR_AUTO_COLLAPSE
   useEffect(() => { actions.setNarrow(narrow) }, [actions, narrow])
-  const sidebarCollapsed = narrow ? !panels.narrowExpanded : panels.sidebar === 0
+  const pickerOpen = narrow && panels.narrowExpanded
+  const sidebarCollapsed = narrow ? !pickerOpen : panels.sidebar === 0
   const sidebarPreference = sidebarCollapsed
     ? 0
     : panels.sidebar === 0 ? SIDEBAR_DEFAULT : panels.sidebar
-  const cols = computeColumns(viewport, sidebarPreference, detailsSession === undefined ? 0 : panels.details)
+  // Mobile: the chat takes the full width and the sidebar rides a fixed
+  // dropdown picker under the header (its own geometry in the CSS); desktop
+  // keeps the concession chain. The picker always renders wide content, so
+  // its collapsed flag stays false while the frame's data attribute keeps
+  // reporting the picker as closed.
+  const pickerWidth = Math.max(0, viewport - PICKER_INSET * 2)
+  const cols = narrow
+    ? { sidebar: 0, center: viewport, details: 0 }
+    : computeColumns(viewport, sidebarPreference, detailsSession === undefined ? 0 : panels.details)
   const colsRef = useRef(cols)
   colsRef.current = cols
 
@@ -161,41 +199,101 @@ export function AppFrame({
     actions.setDetails(detailsBase.current - dx)
   }, [actions])
 
+  // Picking a session from the mobile picker closes it: the picker is a
+  // picking surface, not a persistent pane — the header switcher reopens it.
+  const currentId = useSessions(s => s.current)
+  const previousCurrent = useRef(currentId)
+  useEffect(() => {
+    if (previousCurrent.current === currentId) return
+    previousCurrent.current = currentId
+    if (pickerOpen) actions.toggleSidebar()
+  }, [currentId, pickerOpen, actions])
+
+  const openSettingsFromHeader = useCallback(() => {
+    openSettings()
+    if (pickerOpen) actions.toggleSidebar()
+  }, [openSettings, pickerOpen, actions])
+
   return (
     <div
       ref={frameRef}
       className={css.frame}
-      style={{ gridTemplateColumns: `${cols.sidebar}px minmax(0, 1fr) ${cols.details}px` }}
+      style={{
+        gridTemplateColumns: narrow
+          ? '0px minmax(0, 1fr) 0px'
+          : `${cols.sidebar}px minmax(0, 1fr) ${cols.details}px`,
+        gridTemplateRows: narrow ? 'auto minmax(0, 1fr)' : '100%',
+      }}
       data-sidebar-collapsed={sidebarCollapsed || undefined}
       data-details-collapsed={cols.details === 0 || undefined}
       data-dragging={dragging || undefined}
+      data-narrow={narrow || undefined}
+      data-picker-open={pickerOpen || undefined}
     >
+      {narrow && (
+        <header className={css.mobileHeader}>
+          <button
+            type="button"
+            className={css.sessionSwitcher}
+            aria-label={t('session.switcher.label')}
+            onClick={() => { actions.toggleSidebar() }}
+          >
+            <span className={css.sessionSwitcherTitle}>
+              {currentTitle ?? t('session.switcher.placeholder')}
+            </span>
+            <IconChevronDownOutline14 className={css.sessionSwitcherChevron} size={14} />
+          </button>
+          <button
+            type="button"
+            className={css.settingsButton}
+            aria-label={t('settings.open')}
+            onClick={openSettingsFromHeader}
+          >
+            <IconSettingsOutline16 size={18} />
+          </button>
+        </header>
+      )}
       <div className={css.sidebarCol}>
         {/* Render-site slot call with live concession output: a closed
             sidebar keeps the mounted slot at the compact-rail width, and the
             component sees its rendered state as owner params decided here
             (collapsed follows the resolved rail, so a derived auto-collapse
-            renders the rail UI too). */}
+            renders the rail UI too). On mobile the column is the dropdown
+            picker: it always renders wide content (collapsed stays false)
+            and the frame owns its visibility. */}
         {renderSlot('sidebar', {
-          collapsed: sidebarCollapsed,
-          width: cols.sidebar,
+          collapsed: narrow ? false : sidebarCollapsed,
+          width: narrow ? pickerWidth : cols.sidebar,
+          picker: narrow,
         })}
       </div>
-      <>
-        {/* Both column occupants stay at fixed tree positions from first
-            paint — no loading gate: a bare status line reads worse than
-            the shell's own pending rendering. The conversation
-            is session-maybe; the strict details entry naturally renders
-            empty while no session is current. */}
+      {/* The conversation/details pair lives under ONE wrapper in both
+          trees: desktop makes the wrapper display:contents so the columns
+          stay the grid's items, mobile gives it the row-2 box. The stable
+          JSX position means the breakpoint flip never remounts the
+          conversation subtree — its DOM nodes, scroll position, and drafts
+          survive the resize. Both occupants stay mounted from first paint —
+          no loading gate: a bare status line reads worse than the shell's
+          own pending rendering. The conversation is session-maybe; the
+          strict details entry naturally renders empty while no session is
+          current. */}
+      <div className={narrow ? css.mobileBody : css.bodyContents}>
         <CenterColumn>{renderSlot('conversation', {})}</CenterColumn>
         <DetailsColumn>{renderSlot('details', {})}</DetailsColumn>
-      </>
+      </div>
+      {narrow && (
+        <div
+          className={css.pickerMask}
+          aria-hidden="true"
+          onClick={() => { if (pickerOpen) actions.toggleSidebar() }}
+        />
+      )}
       <div className={css.overlayLayer} data-shell-overlay>
         {renderSlot('shell.overlay', {})}
       </div>
       {/* The collapsed rail is fixed-width: no resize handle while closed. */}
-      {!sidebarCollapsed && <DragHandle side="sidebar" left={cols.sidebar} onStart={onSidebarStart} onDrag={onSidebarDrag} onEnd={onDragEnd} />}
-      {cols.details > 0 && <DragHandle side="details" left={viewport - cols.details} onStart={onDetailsStart} onDrag={onDetailsDrag} onEnd={onDragEnd} />}
+      {!narrow && !sidebarCollapsed && <DragHandle side="sidebar" left={cols.sidebar} onStart={onSidebarStart} onDrag={onSidebarDrag} onEnd={onDragEnd} />}
+      {!narrow && cols.details > 0 && <DragHandle side="details" left={viewport - cols.details} onStart={onDetailsStart} onDrag={onDetailsDrag} onEnd={onDragEnd} />}
     </div>
   )
 }

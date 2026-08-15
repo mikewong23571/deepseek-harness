@@ -119,8 +119,15 @@ export class AppWebEntry {
         error={this.error}
         renderApp={() => {
           const shell = this.ctx.get('appShell')
-          // Unreachable after a clean settle (the app-shell entry is in every graph).
-          if (shell === undefined) throw new Error('web boot: appShell service missing after settled')
+          if (shell === undefined) {
+            // DIAGNOSTIC (tab-switch black screen): dump the fiber table on
+            // the fatal read so the cascade that retracted appShell is visible.
+            const table = [...this.ctx.loader.entries()]
+              .map(entry => `${entry.options.name}=${entry.fiber === undefined ? 'fiberless' : STATE_LABELS[entry.fiber.state]}`)
+              .join(' ')
+            console.error(`[web-boot] renderApp read appShell missing after settle; fibers: ${table}`)
+            throw new Error('web boot: appShell service missing after settled')
+          }
           return shell.renderApp()
         }}
       />,
@@ -173,6 +180,11 @@ export class AppWebEntry {
     ctx.on('internal/status', (fiber) => {
       const entry = fiber.entry
       if (entry === undefined || entry.fiber === undefined) return
+      // DIAGNOSTIC (tab-switch black screen): a post-settle transition is the
+      // cascade suspect — log who flips and to what state.
+      if (this.settled.getSnapshot()) {
+        console.warn(`[web-boot] post-settle fiber transition: ${entry.options.name} -> ${STATE_LABELS[entry.fiber.state]}`)
+      }
       this.status.set(entry.options.name, STATE_LABELS[entry.fiber.state])
     })
 

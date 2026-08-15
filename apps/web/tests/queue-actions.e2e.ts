@@ -16,7 +16,7 @@ import {
   assertFixtureInventory, captureStableAria, compareOrRefreshGolden,
   launchWebScaffold, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
-import { connectFreshWorkspace, newEnglishPage, saveFailureShot } from './support.ts'
+import { connectFreshWorkspace, newEnglishPage, saveFailureShot, settleFrameMode } from './support.ts'
 
 const SNAPSHOT_DIR = fileURLToPath(new URL('./snapshots/queue-actions', import.meta.url))
 const FIXTURE = fileURLToPath(new URL('./snapshots/live-interactions/session.jsonl', import.meta.url))
@@ -112,6 +112,7 @@ describe('web e2e: queue row actions', () => {
     ).toBe(2)
 
     await page.setViewportSize({ width: 640, height: 1000 })
+    await settleFrameMode(page, true)
     const queueBox = await page.locator('[data-queue-dock]').boundingBox()
     const composerBox = await page.locator('[data-composer-card]').boundingBox()
     expect(queueBox).not.toBeNull()
@@ -130,6 +131,7 @@ describe('web e2e: queue row actions', () => {
     expect(queueLeftInset).toBeCloseTo(composerMetrics.dockInset, 1)
     expect(queueRightInset).toBeCloseTo(composerMetrics.dockInset, 1)
     await page.setViewportSize({ width: 1680, height: 1000 })
+    await settleFrameMode(page, false)
 
     const editRow = page.getByText(EDIT, { exact: true }).locator('..')
     await editRow.getByRole('button', { name: 'Edit queued message' }).click()
@@ -244,8 +246,10 @@ describe('web e2e: queue row actions', () => {
     }
     await expectAlignedContextPanels()
     await page.setViewportSize({ width: 640, height: 1000 })
+    await settleFrameMode(page, true)
     await expectAlignedContextPanels()
     await page.setViewportSize({ width: 1680, height: 1000 })
+    await settleFrameMode(page, false)
 
     await queueHeader.click()
     const removeButtons = page.getByRole('button', { name: 'Remove queued message' })

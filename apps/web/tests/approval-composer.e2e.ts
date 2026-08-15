@@ -25,7 +25,7 @@ import {
   assertFixtureInventory, captureStableAria, compareOrRefreshGolden, fixtureUserPrompts,
   launchWebScaffold, recordFixture, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
-import { connectFreshWorkspace, newEnglishPage, saveFailureShot } from './support.ts'
+import { connectFreshWorkspace, newEnglishPage, saveFailureShot, settleFrameMode } from './support.ts'
 
 const SNAPSHOT_DIR = fileURLToPath(new URL('./snapshots/approval-composer', import.meta.url))
 const FIXTURE = join(SNAPSHOT_DIR, 'session.jsonl')
@@ -120,6 +120,9 @@ describe('web e2e: approval takeover keeps its actions reachable', () => {
       const original = page.viewportSize() ?? { width: 1680, height: 1000 }
       for (const height of [1000, 700]) {
         await page.setViewportSize({ width: 900, height })
+        // 900px crosses the mobile-tree breakpoint: wait out the hard flip so
+        // the panel geometry reads never straddle it.
+        await settleFrameMode(page, true)
         const geometry = await panel.evaluate((root) => {
           const region = root.querySelector<HTMLElement>('[data-approval-scroll]')
           const card = region?.parentElement ?? null
@@ -150,6 +153,7 @@ describe('web e2e: approval takeover keeps its actions reachable', () => {
         expect(geometry.actionsBottom).toBeLessThanOrEqual(geometry.cardBottom)
       }
       await page.setViewportSize(original)
+      await settleFrameMode(page, original.width < 1024)
     }
 
     await panel.getByRole('button', { name: 'Allow once' }).click()

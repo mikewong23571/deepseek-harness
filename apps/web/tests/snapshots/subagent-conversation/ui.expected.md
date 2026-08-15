@@ -8,8 +8,7 @@
   - button "1 subagent":
     - text: 1 subagent
     - img
-  - button "Session log":
-    - text: Session log
+  - button "Export session log":
     - img
   - tablist:
     - tab "Chat" [selected]

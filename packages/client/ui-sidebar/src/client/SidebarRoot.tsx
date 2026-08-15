@@ -14,6 +14,13 @@
  * scrollbar at all: the shell tracks the pointer and rebinds ui-theme's
  * scrollbar indirection away while it is elsewhere, so a list the user is not
  * pointing at carries no bar.
+ *
+ * Mobile (the frame's picker owner prop): the column is a dropdown picker
+ * under the frame's top header, not a column at all — the shell renders only
+ * the New Session button and the browsing region, always wide, plus the
+ * settings seat mounted invisibly (its portalled panel is the mobile
+ * settings surface). The frame owns the dropdown's visibility, and the
+ * header gear opens settings.
  */
 import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
@@ -44,6 +51,7 @@ const SCROLLBAR_LINGER_MS = 2000
 export function SidebarRoot({
   collapsed,
   width,
+  picker,
   startSession,
   toggleSidebar,
   t,
@@ -89,12 +97,11 @@ export function SidebarRoot({
     lingerTimer.current = undefined
   }
   // Leaving is decided by the column's BOX, not by DOM containment, and only
-  // while the bars are drawn. ui-settings renders its full-viewport panel as a
-  // fixed-position DESCENDANT of this column, so a pointer moved onto that
-  // panel — or onto the conversation once it closes — fires no `pointerleave`
-  // here, and the bars would stay drawn over a column nobody is pointing at.
-  // The element's own leave stays as the one signal geometry cannot give: a
-  // pointer that leaves the window emits no further moves.
+  // while the bars are drawn: overlay surfaces (the settings panel, portalled
+  // menus) sit outside this subtree or cover the conversation, and the
+  // geometry check is the one signal that holds for all of them. The
+  // element's own leave stays as the signal geometry cannot give: a pointer
+  // that leaves the window emits no further moves.
   useEffect(() => {
     if (!pointerInside) return
     const onMove = (event: PointerEvent): void => {
@@ -112,6 +119,49 @@ export function SidebarRoot({
       cancelLinger()
     }
   }, [pointerInside])
+
+  // Mobile picker: the dropdown under the frame header carries only the
+  // picking surface — the New Session button plus the always-wide browsing
+  // region. The frame owns the dropdown's visibility and never sends
+  // collapsed here, so no fold machinery runs in this tree.
+  if (picker) {
+    return (
+      <div
+        ref={column}
+        className={clsx(css.root, css.picker, !pointerInside && css.quietBars)}
+        onPointerEnter={() => {
+          cancelLinger()
+          setPointerInside(true)
+        }}
+        onPointerLeave={() => { armLinger() }}
+      >
+        <button
+          type="button"
+          className={css.newSession}
+          aria-label={t('session.new.label')}
+          onClick={() => { startSession() }}
+        >
+          <IconNewChatOutline16 size={14} />
+          <span className={clsx(css.newSessionLabel, css.wide)}>{t('session.new')}</span>
+        </button>
+        <div className={css.regionArea}>
+          {renderSlot('sidebar.workspaces', {
+            wide: true,
+            // The picker has no rail: the region is always wide, so an
+            // expand request can never fire here.
+            expandSidebar: () => {},
+          })}
+        </div>
+        {/* The settings seat stays mounted but invisible: its trigger row is
+            the desktop affordance, while its portalled panel is the mobile
+            settings surface the frame's header gear opens. Unmounting the
+            seat would leave the gear writing a store nobody renders. */}
+        <div className={css.pickerSettings}>
+          {renderSlot('sidebar.settings', { wide: true })}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div

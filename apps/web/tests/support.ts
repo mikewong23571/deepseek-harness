@@ -31,6 +31,25 @@ export async function newEnglishPage(browser: Browser, height = 1000): Promise<P
   return await browser.newPage({ viewport: { width: 1680, height }, locale: 'en-US' })
 }
 
+/**
+ * Wait out the layout's mobile-tree flip after a viewport change crosses the
+ * 1024px breakpoint. The flip rides a rAF-throttled ResizeObserver and swaps
+ * the frame hard between the desktop tracks and the mobile tree, so
+ * sequential boundingBox roundtrips issued right after setViewportSize can
+ * straddle it and read boxes from different modes. `data-narrow` is the
+ * frame's settled marker: once it matches the target mode, the geometry is
+ * stable.
+ * @param page - page under test.
+ * @param narrow - the mode the new viewport implies (width < 1024).
+ */
+export async function settleFrameMode(page: Page, narrow: boolean): Promise<void> {
+  await page.waitForFunction(
+    expected => (document.querySelector('[data-narrow]') !== null) === expected,
+    narrow,
+    { timeout: 10_000 },
+  )
+}
+
 /** Fail loud on a stale checkout instead of testing yesterday's bundle. */
 export function requireDist(): void {
   if (!existsSync(DIST_INDEX)) {

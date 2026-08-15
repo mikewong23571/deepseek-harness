@@ -13,7 +13,7 @@ import type {} from '@deepseek-ai/dsh-session-title'
 import {
   launchWebScaffold, seedSession, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
-import { newEnglishPage, saveFailureShot } from './support.ts'
+import { newEnglishPage, saveFailureShot, settleFrameMode } from './support.ts'
 
 const MODE = webSnapshotMode()
 const OVERLAY = fileURLToPath(new URL('./produced-files.overlay.yml', import.meta.url))
@@ -137,7 +137,12 @@ describe('web e2e: a finished turn ends with the files it produced', () => {
     await sessionRow.click()
 
     await expect.poll(() => page.getByText(DONE, { exact: true }).count(), { timeout: 15_000 }).toBe(1)
-    await page.setViewportSize({ width: 780, height: 900 })
+    // The mobile tree gives the conversation the full viewport (no rail),
+    // so the two-chip window lands at a narrower viewport than the rail
+    // geometry needed. 660px crosses the mobile-tree breakpoint: wait out
+    // the flip before reading the transcript row.
+    await page.setViewportSize({ width: 660, height: 900 })
+    await settleFrameMode(page, true)
     const row = page.locator('[data-produced-files-row]')
     await row.waitFor({ timeout: 15_000 })
     const chips = row.getByRole('button')

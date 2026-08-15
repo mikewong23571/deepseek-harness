@@ -271,6 +271,21 @@
   width: auto;
 }
 
+/* Mobile picker (the frame's dropdown under its top header): the container
+   caps the height (AppFrame.module.css), and the root inherits that cap so
+   the browsing region scrolls inside the dropdown instead of being clipped
+   by the container's overflow. */
+.root.picker {
+  max-height: inherit;
+}
+
+/* The settings seat stays mounted in the picker for its portalled panel,
+   but its trigger row is the desktop affordance — the frame's header gear
+   opens the panel on mobile. */
+.pickerSettings {
+  display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .wide,
   .fading > *,

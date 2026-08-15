@@ -21,6 +21,13 @@ async function bench() {
     api: { settings: { describe: async () => ({ result: { ok: false } }) } },
     isLoopback: false,
   } as never)
+  ctx.provide('layout', {
+    toggleSidebar: () => {},
+    openDetails: () => {},
+    closeDetails: () => {},
+    openSettings: () => {},
+    onOpenSettings: () => () => {},
+  } as never)
   ctx.provide('remote', { $on: () => () => {} } as never)
   return { ctx, slots: ctx.get('slots') as SlotRegistry }
 }
@@ -49,7 +56,7 @@ const CHILD_SPECS = {
 
 describe('ui-settings apply', () => {
   it('declares only the slot registry (a pure composition face, no locale)', () => {
-    expect(inject).toEqual(['slots', 'locale', 'connection'])
+    expect(inject).toEqual(['slots', 'locale', 'connection', 'layout'])
   })
 
   it('registers the shell and declares every child slot, before or after the declaration', async () => {

@@ -3,8 +3,7 @@
     - button "Use only Cordis tools. First" [disabled]
   - img
   - text: Standard mode
-  - button "Session log":
-    - text: Session log
+  - button "Export session log":
     - img
   - tablist:
     - tab "Chat" [selected]

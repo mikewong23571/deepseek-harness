@@ -55,4 +55,27 @@ describe('LayoutController', () => {
     expect(stale.toggleSidebar).not.toHaveBeenCalled()
     expect(fresh.toggleSidebar).toHaveBeenCalledTimes(1)
   })
+
+  it('openSettings notifies every subscribed listener', () => {
+    const service = new LayoutController()
+    const first = vi.fn()
+    const second = vi.fn()
+    const off = service.onOpenSettings(first)
+    service.onOpenSettings(second)
+
+    service.openSettings()
+
+    expect(first).toHaveBeenCalledTimes(1)
+    expect(second).toHaveBeenCalledTimes(1)
+
+    off()
+    service.openSettings()
+    expect(first).toHaveBeenCalledTimes(1)
+    expect(second).toHaveBeenCalledTimes(2)
+  })
+
+  it('openSettings is a no-op with no listeners', () => {
+    const service = new LayoutController()
+    expect(() => { service.openSettings() }).not.toThrow()
+  })
 })

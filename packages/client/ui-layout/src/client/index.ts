@@ -9,11 +9,13 @@
  */
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-ui-theme/client'
+import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type { PanelActions } from './service.ts'
 import { AppFrame } from './AppFrame.tsx'
 import { createLayoutStore } from './stores.ts'
 import { LayoutController } from './service.ts'
 import { ThemePresenter } from './theme-presenter.ts'
+import { en, zh, type LayoutKey } from './locales.ts'
 
 // Contract exports only (export-convergence rule: cross-package consumers
 // keep a symbol exported; test-only/package-internal symbols live off /src).
@@ -22,11 +24,19 @@ import { ThemePresenter } from './theme-presenter.ts'
 // against; the frame components and the store factory are package-internal.
 export { LayoutController } from './service.ts'
 export type { ILayout } from './service.ts'
+export type { LayoutKey } from './locales.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
     /** The outward face only; the concrete service stays inside this plugin. */
     layout: import('./service.ts').ILayout
+  }
+}
+
+declare module '@deepseek-ai/dsh-client-ui-slots' {
+  interface LocaleNamespaceMap {
+    /** Frame chrome copy (mobile header). */
+    layout: LayoutKey
   }
 }
 
@@ -96,6 +106,14 @@ export interface SidebarOwnerProps {
   collapsed: boolean
   /** Rendered column width in px (SIDEBAR_COLLAPSED when collapsed). */
   width: number
+  /**
+   * Mobile presentation: below the auto-collapse breakpoint the frame mounts
+   * the column as a dropdown picker under its top header instead of the
+   * desktop column/rail, and the occupant renders only the session/workspace
+   * picking surface (no brand row, rail, or foot). The frame owns picker
+   * visibility; the occupant always renders its wide content.
+   */
+  picker: boolean
 }
 
 /** Conversation owner share: business state and actions belong to the registrant. */
@@ -105,7 +123,7 @@ export interface ConvOwnerProps {}
 export interface DetailsOwnerProps {}
 
 /** Required services (cordis fiber inject — the loader passes all module exports as an object plugin). */
-export const inject = ['slots', 'theme']
+export const inject = ['slots', 'theme', 'locale']
 
 /**
  * Client plugin body: provide ctx.layout, then one register() call — AppFrame
@@ -115,10 +133,12 @@ export const inject = ['slots', 'theme']
  */
 export function apply(ctx: ClientContext): void {
   const layout = new LayoutController()
+  ctx.effect(() => ctx.locale.register('layout', { zh, en }), 'ui-layout: dictionaries')
   ctx.effect(() => {
     const disposeService = ctx.reflect.provide('layout', layout)
     const disposeRegistration = ctx.slots.register({
       name: 'root',
+      locale: 'layout',
       children: {
         'sidebar': { kind: 'single', scope: 'root' },
         'conversation': { kind: 'single', scope: 'session-maybe' },
@@ -129,10 +149,12 @@ export function apply(ctx: ClientContext): void {
       // entry and delivers useStore/actions to AppFrame as standard props.
       store: createLayoutStore,
       // The hook's only side effect connects the root store to ctx.layout;
-      // conversation business actions belong to their registrants.
+      // conversation business actions belong to their registrants. The
+      // settings opener rides the same face so the mobile header gear can
+      // reach the settings panel without importing the settings package.
       inject: (actions: PanelActions) => {
         layout.attachPanels(actions)
-        return {}
+        return { openSettings: () => { layout.openSettings() } }
       },
     }, AppFrame)
     return () => {

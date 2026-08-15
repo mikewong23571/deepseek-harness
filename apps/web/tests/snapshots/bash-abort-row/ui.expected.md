@@ -1,8 +1,7 @@
 - banner:
   - navigation "Session hierarchy":
     - 'button "Run two shell commands: wait" [disabled]'
-  - button "Session log":
-    - text: Session log
+  - button "Export session log":
     - img
   - tablist:
     - tab "Chat" [selected]
